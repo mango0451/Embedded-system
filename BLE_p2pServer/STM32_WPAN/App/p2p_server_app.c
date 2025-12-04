@@ -50,6 +50,14 @@ typedef struct
   P2P_ButtonCharValue_t ButtonControl;
   uint16_t              ConnectionHandle;
 } P2P_Server_App_Context_t;
+
+/* Simple time structure for clock + alarm */
+typedef struct
+{
+  uint8_t hours;   /* 0–23   */
+  uint8_t minutes; /* 0–59   */
+  uint8_t seconds; /* 0–59   */
+} ClockTime_t;
 /* USER CODE END PTD */
 
 /* Private defines ------------------------------------------------------------*/
@@ -67,18 +75,26 @@ typedef struct
 /**
  * START of Section BLE_APP_CONTEXT
  */
-
 static P2P_Server_App_Context_t P2P_Server_App_Context;
-
 /**
  * END of Section BLE_APP_CONTEXT
  */
+
+/* Clock/alarm state */
+static volatile ClockTime_t g_CurrentTime = {0, 0, 0};
+static volatile ClockTime_t g_AlarmTime   = {0, 0, 0};
+static volatile uint8_t     g_AlarmEnabled = 0;  /* 1 = alarm armed */
+static volatile uint8_t     g_AlarmActive  = 0;  /* 1 = alarm currently ringing */
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
 static void P2PS_Send_Notification(void);
 static void P2PS_APP_LED_BUTTON_context_Init(void);
+
+/* Local helpers */
+static void Clock_Increment_OneSecond(void);
+static void Alarm_CheckAndTrigger(void);
 /* USER CODE END PFP */
 
 /* Functions Definition ------------------------------------------------------*/
@@ -120,42 +136,52 @@ void P2PS_STM_App_Notification(P2PS_STM_App_Notification_evt_t *pNotification)
     case P2PS_STM_WRITE_EVT:
 /* USER CODE BEGIN P2PS_STM_WRITE_EVT */
     {
-      /* Expected payload:
-       *  pPayload[0] = device selection (currently unused, can be 0x00)
-       *  pPayload[1] = command:
-       *      0x01 -> TOGGLE LED
-       *      0x00 -> FORCE LED OFF (optional)
+      /*
+       * BLE payload format (from frontend):
+       *   p[0] = current hour   (0–23)
+       *   p[1] = current minute (0–59)
+       *   p[2] = alarm hour     (0–23)
+       *   p[3] = alarm minute   (0–59)
+       *
+       * The MCU will:
+       *   - Sync its internal clock to (current hour, minute), seconds = 0
+       *   - Set the alarm time to (alarm hour, minute), seconds = 0
+       *   - Enable the alarm
+       *   - Turn BLUE LED ON to indicate an alarm is armed
        */
-      uint8_t device  = pNotification->DataTransfered.pPayload[0];
-      uint8_t command = pNotification->DataTransfered.pPayload[1];
-      (void)device; /* currently not used */
 
-      if (command == 0x01)
-      {
-        /* Toggle LED state */
-        if (P2P_Server_App_Context.LedControl.Led1 == 0x00)
-        {
-          BSP_LED_On(LED_BLUE);
-          P2P_Server_App_Context.LedControl.Led1 = 0x01;
-          APP_DBG_MSG("-- P2P APPLICATION SERVER : LED1 ON (toggle)\n");
-          APP_DBG_MSG(" \n\r");
-        }
-        else
-        {
-          BSP_LED_Off(LED_BLUE);
-          P2P_Server_App_Context.LedControl.Led1 = 0x00;
-          APP_DBG_MSG("-- P2P APPLICATION SERVER : LED1 OFF (toggle)\n");
-          APP_DBG_MSG(" \n\r");
-        }
-      }
-      else if (command == 0x00)
-      {
-        /* Optional: explicit OFF command */
-        BSP_LED_Off(LED_BLUE);
-        P2P_Server_App_Context.LedControl.Led1 = 0x00;
-        APP_DBG_MSG("-- P2P APPLICATION SERVER : LED1 OFF (force)\n");
-        APP_DBG_MSG(" \n\r");
-      }
+      uint8_t *p = pNotification->DataTransfered.pPayload;
+
+      uint8_t currHour   = p[0];
+      uint8_t currMinute = p[1];
+      uint8_t alarmHour  = p[2];
+      uint8_t alarmMinute= p[3];
+
+      /* Basic range checks – clamp to valid ranges so bad input doesn’t break us */
+      if (currHour >= 24)   currHour   = 0;
+      if (currMinute >= 60) currMinute = 0;
+      if (alarmHour >= 24)  alarmHour  = 0;
+      if (alarmMinute >= 60)alarmMinute= 0;
+
+      /* Sync current time */
+      g_CurrentTime.hours   = currHour;
+      g_CurrentTime.minutes = currMinute;
+      g_CurrentTime.seconds = 0;
+
+      /* Set alarm time */
+      g_AlarmTime.hours   = alarmHour;
+      g_AlarmTime.minutes = alarmMinute;
+      g_AlarmTime.seconds = 0;
+
+      /* Arm alarm and indicate with LED */
+      g_AlarmEnabled = 1;
+      g_AlarmActive  = 0;
+      BSP_LED_On(LED_BLUE);
+
+      APP_DBG_MSG("-- P2P APPLICATION SERVER : TIME SYNC %02d:%02d, ALARM SET %02d:%02d\n",
+                  (int)g_CurrentTime.hours, (int)g_CurrentTime.minutes,
+                  (int)g_AlarmTime.hours, (int)g_AlarmTime.minutes);
+      APP_DBG_MSG(" \n\r");
     }
 /* USER CODE END P2PS_STM_WRITE_EVT */
       break;
@@ -184,12 +210,13 @@ void P2PS_APP_Notification(P2PS_APP_ConnHandle_Not_evt_t *pNotification)
 /* USER CODE END P2PS_APP_Notification_P2P_Evt_Opcode */
     case PEER_CONN_HANDLE_EVT :
 /* USER CODE BEGIN PEER_CONN_HANDLE_EVT */
-/* Nothing special on connect for now */
+      /* Nothing special on connect for now */
 /* USER CODE END PEER_CONN_HANDLE_EVT */
       break;
 
     case PEER_DISCON_HANDLE_EVT :
 /* USER CODE BEGIN PEER_DISCON_HANDLE_EVT */
+      /* Reset context and turn off LED/alarm on disconnect */
       P2PS_APP_LED_BUTTON_context_Init();
 /* USER CODE END PEER_DISCON_HANDLE_EVT */
       break;
@@ -222,44 +249,54 @@ void P2PS_APP_Init(void)
 /* USER CODE BEGIN FD */
 void P2PS_APP_LED_BUTTON_context_Init(void)
 {
+  /* Turn LED off and reset alarm/clock state */
   BSP_LED_Off(LED_BLUE);
   APP_DBG_MSG("LED BLUE OFF\n");
 
+  g_CurrentTime.hours   = 0;
+  g_CurrentTime.minutes = 0;
+  g_CurrentTime.seconds = 0;
+  g_AlarmTime.hours     = 0;
+  g_AlarmTime.minutes   = 0;
+  g_AlarmTime.seconds   = 0;
+  g_AlarmEnabled        = 0;
+  g_AlarmActive         = 0;
+
 #if(P2P_SERVER1 != 0)
-  P2P_Server_App_Context.LedControl.Device_Led_Selection  = 0x01; /* Device1 */
-  P2P_Server_App_Context.LedControl.Led1                  = 0x00; /* led OFF */
-  P2P_Server_App_Context.ButtonControl.Device_Button_Selection = 0x01;/* Device1 */
-  P2P_Server_App_Context.ButtonControl.ButtonStatus        = 0x00;
+  P2P_Server_App_Context.LedControl.Device_Led_Selection      = 0x01; /* Device1 */
+  P2P_Server_App_Context.LedControl.Led1                      = 0x00; /* led OFF */
+  P2P_Server_App_Context.ButtonControl.Device_Button_Selection= 0x01; /* Device1 */
+  P2P_Server_App_Context.ButtonControl.ButtonStatus           = 0x00;
 #endif
 #if(P2P_SERVER2 != 0)
-  P2P_Server_App_Context.LedControl.Device_Led_Selection  = 0x02; /* Device2 */
-  P2P_Server_App_Context.LedControl.Led1                  = 0x00; /* led OFF */
-  P2P_Server_App_Context.ButtonControl.Device_Button_Selection = 0x02;/* Device2 */
-  P2P_Server_App_Context.ButtonControl.ButtonStatus        = 0x00;
+  P2P_Server_App_Context.LedControl.Device_Led_Selection      = 0x02; /* Device2 */
+  P2P_Server_App_Context.LedControl.Led1                      = 0x00; /* led OFF */
+  P2P_Server_App_Context.ButtonControl.Device_Button_Selection= 0x02; /* Device2 */
+  P2P_Server_App_Context.ButtonControl.ButtonStatus           = 0x00;
 #endif
 #if(P2P_SERVER3 != 0)
-  P2P_Server_App_Context.LedControl.Device_Led_Selection  = 0x03; /* Device3 */
-  P2P_Server_App_Context.LedControl.Led1                  = 0x00; /* led OFF */
-  P2P_Server_App_Context.ButtonControl.Device_Button_Selection = 0x03; /* Device3 */
-  P2P_Server_App_Context.ButtonControl.ButtonStatus        = 0x00;
+  P2P_Server_App_Context.LedControl.Device_Led_Selection      = 0x03; /* Device3 */
+  P2P_Server_App_Context.LedControl.Led1                      = 0x00; /* led OFF */
+  P2P_Server_App_Context.ButtonControl.Device_Button_Selection= 0x03; /* Device3 */
+  P2P_Server_App_Context.ButtonControl.ButtonStatus           = 0x00;
 #endif
 #if(P2P_SERVER4 != 0)
-  P2P_Server_App_Context.LedControl.Device_Led_Selection  = 0x04; /* Device4 */
-  P2P_Server_App_Context.LedControl.Led1                  = 0x00; /* led OFF */
-  P2P_Server_App_Context.ButtonControl.Device_Button_Selection = 0x04; /* Device4 */
-  P2P_Server_App_Context.ButtonControl.ButtonStatus        = 0x00;
+  P2P_Server_App_Context.LedControl.Device_Led_Selection      = 0x04; /* Device4 */
+  P2P_Server_App_Context.LedControl.Led1                      = 0x00; /* led OFF */
+  P2P_Server_App_Context.ButtonControl.Device_Button_Selection= 0x04; /* Device4 */
+  P2P_Server_App_Context.ButtonControl.ButtonStatus           = 0x00;
 #endif
 #if(P2P_SERVER5 != 0)
-  P2P_Server_App_Context.LedControl.Device_Led_Selection  = 0x05; /* Device5 */
-  P2P_Server_App_Context.LedControl.Led1                  = 0x00; /* led OFF */
-  P2P_Server_App_Context.ButtonControl.Device_Button_Selection = 0x05; /* Device5 */
-  P2P_Server_App_Context.ButtonControl.ButtonStatus        = 0x00;
+  P2P_Server_App_Context.LedControl.Device_Led_Selection      = 0x05; /* Device5 */
+  P2P_Server_App_Context.LedControl.Led1                      = 0x00; /* led OFF */
+  P2P_Server_App_Context.ButtonControl.Device_Button_Selection= 0x05; /* Device5 */
+  P2P_Server_App_Context.ButtonControl.ButtonStatus           = 0x00;
 #endif
 #if(P2P_SERVER6 != 0)
-  P2P_Server_App_Context.LedControl.Device_Led_Selection  = 0x06; /* Device6 */
-  P2P_Server_App_Context.LedControl.Led1                  = 0x00; /* led OFF */
-  P2P_Server_App_Context.ButtonControl.Device_Button_Selection = 0x06; /* Device6 */
-  P2P_Server_App_Context.ButtonControl.ButtonStatus        = 0x00;
+  P2P_Server_App_Context.LedControl.Device_Led_Selection      = 0x06; /* Device6 */
+  P2P_Server_App_Context.LedControl.Led1                      = 0x00; /* led OFF */
+  P2P_Server_App_Context.ButtonControl.Device_Button_Selection= 0x06; /* Device6 */
+  P2P_Server_App_Context.ButtonControl.ButtonStatus           = 0x00;
 #endif
 }
 
@@ -267,6 +304,16 @@ void P2PS_APP_SW1_Button_Action(void)
 {
   UTIL_SEQ_SetTask( 1<<CFG_TASK_SW1_BUTTON_PUSHED_ID, CFG_SCH_PRIO_0);
   return;
+}
+
+/**
+  * @brief  1 Hz clock tick.
+  *         Call this from a hardware timer interrupt or an RTOS periodic task.
+  */
+void P2PS_APP_Clock_1Hz_Tick(void)
+{
+  Clock_Increment_OneSecond();
+  Alarm_CheckAndTrigger();
 }
 /* USER CODE END FD */
 
@@ -300,5 +347,70 @@ void P2PS_Send_Notification(void)
   }
 
   return;
+}
+
+/**
+  * @brief  Increment internal clock by one second.
+  */
+static void Clock_Increment_OneSecond(void)
+{
+  g_CurrentTime.seconds++;
+  if (g_CurrentTime.seconds >= 60)
+  {
+    g_CurrentTime.seconds = 0;
+    g_CurrentTime.minutes++;
+    if (g_CurrentTime.minutes >= 60)
+    {
+      g_CurrentTime.minutes = 0;
+      g_CurrentTime.hours++;
+      if (g_CurrentTime.hours >= 24)
+      {
+        g_CurrentTime.hours = 0;
+      }
+    }
+  }
+}
+
+/**
+  * @brief  Check if alarm should trigger and control LED.
+  *
+  * Right now:
+  *   - When alarm is armed, BLUE LED is ON (steady).
+  *   - When alarm time is reached, g_AlarmActive is set to 1 and LED stays ON.
+  * Later you can:
+  *   - Add buzzer GPIO toggling here
+  *   - Implement blinking using another timer
+  */
+static void Alarm_CheckAndTrigger(void)
+{
+  if (g_AlarmEnabled)
+  {
+    /* Ensure LED is ON when armed (and stays on while ringing) */
+    BSP_LED_On(LED_BLUE);
+
+    if (!g_AlarmActive &&
+        (g_CurrentTime.hours   == g_AlarmTime.hours) &&
+        (g_CurrentTime.minutes == g_AlarmTime.minutes) &&
+        (g_CurrentTime.seconds == g_AlarmTime.seconds))
+    {
+      g_AlarmActive = 1;
+
+      APP_DBG_MSG("-- P2P APPLICATION SERVER : ALARM TRIGGERED at %02d:%02d:%02d\n",
+                  (int)g_CurrentTime.hours,
+                  (int)g_CurrentTime.minutes,
+                  (int)g_CurrentTime.seconds);
+      APP_DBG_MSG(" \n\r");
+
+      /* TODO: drive buzzer GPIO or signal an RTOS task here */
+      /* Example:
+       * HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_SET);
+       */
+    }
+  }
+  else
+  {
+    /* Alarm not armed – LED off unless you want a different behavior */
+    BSP_LED_Off(LED_BLUE);
+  }
 }
 /* USER CODE END FD_LOCAL_FUNCTIONS*/

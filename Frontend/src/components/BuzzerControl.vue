@@ -1,18 +1,59 @@
-<!-- BuzzerControl.vue -->
 <script setup>
 import { ref } from 'vue'
 
 const connected = ref(false)
 const connecting = ref(false)
-const isOn = ref(false)
 const error = ref('')
 
-const P2P_SERVICE_UUID    = '0000fe40-cc7a-482a-984a-7f2ed5b3e58f';
-const P2P_WRITE_CHAR_UUID = '0000fe41-8e22-4541-9d4c-21edae82ed19';
+// "Alarm armed" from UI point of view (we assume MCU accepted it)
+const alarmArmed = ref(false)
+
+// 12-hour UI fields
+const currentHour12 = ref(12)
+const currentMinute = ref(0)
+const currentAmPm = ref('AM')
+
+const alarmHour12 = ref(7)
+const alarmMinute = ref(0)
+const alarmAmPm = ref('AM')
+
+const P2P_SERVICE_UUID    = '0000fe40-cc7a-482a-984a-7f2ed5b3e58f'
+const P2P_WRITE_CHAR_UUID = '0000fe41-8e22-4541-9d4c-21edae82ed19'
 
 // Will hold bluetooth references after connect()
 let device = null
 let writeChar = null
+
+// Convert 24h -> 12h + AM/PM
+function from24To12(hour24) {
+  let h = hour24 % 24
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12
+  if (h === 0) h = 12
+  return { h, ampm }
+}
+
+// Convert 12h + AM/PM -> 24h
+function to24Hour(hour12, ampm) {
+  let h = Number(hour12) || 0
+  h = Math.min(12, Math.max(1, h)) // clamp 1–12
+
+  if (ampm === 'AM') {
+    if (h === 12) h = 0            // 12 AM -> 0
+  } else { // PM
+    if (h !== 12) h += 12          // 1–11 PM -> 13–23, 12 PM stays 12
+  }
+  return h
+}
+
+// Fill current time from browser when component loads (in 12-hour format)
+;(function initCurrentTimeFromBrowser() {
+  const d = new Date()
+  const { h, ampm } = from24To12(d.getHours())
+  currentHour12.value = h
+  currentMinute.value = d.getMinutes()
+  currentAmPm.value = ampm
+})()
 
 async function connect() {
   error.value = ''
@@ -36,7 +77,7 @@ async function connect() {
     device.addEventListener('gattserverdisconnected', () => {
       connected.value = false
       writeChar = null
-      isOn.value = false
+      alarmArmed.value = false
     })
   } catch (e) {
     console.error(e)
@@ -48,38 +89,80 @@ async function connect() {
   }
 }
 
-async function sendLed(state) {
+function syncWithBrowserTime() {
+  const d = new Date()
+  const { h, ampm } = from24To12(d.getHours())
+  currentHour12.value = h
+  currentMinute.value = d.getMinutes()
+  currentAmPm.value = ampm
+}
+
+function clampTime() {
+  // Clamp UI 12h fields & minutes
+  let ch = Number(currentHour12.value)  || 1
+  let cm = Number(currentMinute.value)  || 0
+  let ah = Number(alarmHour12.value)    || 1
+  let am = Number(alarmMinute.value)    || 0
+
+  ch = Math.min(12, Math.max(1, ch))
+  ah = Math.min(12, Math.max(1, ah))
+  cm = Math.min(59, Math.max(0, cm))
+  am = Math.min(59, Math.max(0, am))
+
+  currentHour12.value  = ch
+  currentMinute.value  = cm
+  alarmHour12.value    = ah
+  alarmMinute.value    = am
+
+  // AM/PM defaults in case something weird happens
+  if (currentAmPm.value !== 'AM' && currentAmPm.value !== 'PM') {
+    currentAmPm.value = 'AM'
+  }
+  if (alarmAmPm.value !== 'AM' && alarmAmPm.value !== 'PM') {
+    alarmAmPm.value = 'AM'
+  }
+}
+
+async function setTimeAndAlarm() {
   if (!connected.value || !writeChar) {
     error.value = 'Not connected to device.'
     return
   }
 
-  try {
-    // Matches your firmware:
-    // dev = pPayload[0] (0x00 = all devices)
-    // state = pPayload[1] (0x01 = ON, 0x00 = OFF)
-    const dev = 0x00
-    const payload = new Uint8Array([dev, state])
+  clampTime()
 
-    // Your STM32 handler is in P2PS_STM_WRITE_EVT
-    await writeChar.writeValueWithoutResponse(payload)
+  const ch24 = to24Hour(currentHour12.value, currentAmPm.value)
+  const cm   = currentMinute.value
+  const ah24 = to24Hour(alarmHour12.value, alarmAmPm.value)
+  const am   = alarmMinute.value
+
+  try {
+    // Payload expected by STM32:
+    // p[0] = current hour   (0–23)
+    // p[1] = current minute (0–59)
+    // p[2] = alarm hour     (0–23)
+    // p[3] = alarm minute   (0–59)
+    const payload = new Uint8Array([ch24, cm, ah24, am])
+
+    if (typeof writeChar.writeValueWithoutResponse === 'function') {
+      await writeChar.writeValueWithoutResponse(payload)
+    } else {
+      await writeChar.writeValue(payload)
+    }
+
+    alarmArmed.value = true
+    error.value = ''
   } catch (e) {
     console.error(e)
     error.value = e?.message || String(e)
   }
-}
-
-async function toggleLed() {
-  const next = !isOn.value
-  await sendLed(next ? 0x01 : 0x00)
-  isOn.value = next
 }
 </script>
 
 <template>
   <section class="card">
     <header class="card-header">
-      <h2>Bluetooth LED Control</h2>
+      <h2>Bluetooth Clock / Alarm</h2>
       <div class="status-pill" :class="connected ? 'ok' : 'bad'">
         <span class="dot" />
         <span>{{ connected ? 'Connected' : 'Disconnected' }}</span>
@@ -88,7 +171,8 @@ async function toggleLed() {
 
     <p class="hint">
       1) Click Connect and choose your STM32 BLE device.<br />
-      2) Use the button below to toggle the onboard LED.
+      2) Adjust the current time and alarm time below.<br />
+      3) Click "Set Time &amp; Alarm" to program the clock.
     </p>
 
     <div class="controls">
@@ -102,20 +186,95 @@ async function toggleLed() {
         <span v-else-if="connected">Connected</span>
         <span v-else>Connect</span>
       </button>
+    </div>
 
+    <div class="time-grid">
+      <div class="time-group">
+        <h3>Current time (MCU clock)</h3>
+        <div class="time-inputs">
+          <label>
+            Hour
+            <input
+              type="number"
+              v-model.number="currentHour12"
+              min="1"
+              max="12"
+            />
+          </label>
+          <span class="colon">:</span>
+          <label>
+            Minute
+            <input
+              type="number"
+              v-model.number="currentMinute"
+              min="0"
+              max="59"
+            />
+          </label>
+          <label>
+            AM/PM
+            <select v-model="currentAmPm">
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </label>
+        </div>
+        <button
+          class="btn mini"
+          type="button"
+          @click="syncWithBrowserTime"
+        >
+          Sync with browser time
+        </button>
+      </div>
+
+      <div class="time-group">
+        <h3>Alarm time</h3>
+        <div class="time-inputs">
+          <label>
+            Hour
+            <input
+              type="number"
+              v-model.number="alarmHour12"
+              min="1"
+              max="12"
+            />
+          </label>
+          <span class="colon">:</span>
+          <label>
+            Minute
+            <input
+              type="number"
+              v-model.number="alarmMinute"
+              min="0"
+              max="59"
+            />
+          </label>
+          <label>
+            AM/PM
+            <select v-model="alarmAmPm">
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
       <button
         class="btn primary"
         type="button"
         :disabled="!connected"
-        @click="toggleLed"
+        @click="setTimeAndAlarm"
       >
-        Turn LED {{ isOn ? 'Off' : 'On' }}
+        Set Time &amp; Alarm
       </button>
     </div>
 
     <p class="led-state">
-      LED state (UI): <span :class="isOn ? 'on' : 'off'">
-        {{ isOn ? 'ON' : 'OFF' }}
+      Alarm status (UI): <span :class="alarmArmed ? 'on' : 'off'">
+        {{ alarmArmed ? 'Armed (LED ON on board)' : 'Not armed' }}
       </span>
     </p>
 
@@ -129,134 +288,3 @@ async function toggleLed() {
     </p>
   </section>
 </template>
-
-<style scoped>
-.card {
-  width: 100%;
-  max-width: 420px;
-  padding: 20px 18px 18px;
-  border-radius: 18px;
-  background: rgba(15, 23, 42, 0.92);
-  box-shadow: 0 14px 40px rgba(0,0,0,0.55);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  backdrop-filter: blur(14px);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.card-header h2 {
-  font-size: 1.1rem;
-  margin: 0;
-}
-
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  border: 1px solid rgba(148, 163, 184, 0.5);
-}
-
-.status-pill.ok {
-  background: rgba(16, 185, 129, 0.08);
-  border-color: rgba(16, 185, 129, 0.7);
-  color: #6ee7b7;
-}
-
-.status-pill.bad {
-  background: rgba(248, 113, 113, 0.08);
-  border-color: rgba(248, 113, 113, 0.7);
-  color: #fecaca;
-}
-
-.status-pill .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
-.hint {
-  margin: 0 0 16px;
-  font-size: 0.9rem;
-  color: #cbd5f5;
-  line-height: 1.4;
-}
-
-.controls {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.btn {
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.97rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn.primary {
-  background: #38bdf8;
-  color: #0b1120;
-}
-
-.btn.secondary {
-  background: rgba(15, 23, 42, 0.9);
-  color: #e5e7eb;
-  border: 1px solid rgba(148, 163, 184, 0.7);
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.btn:not(:disabled):hover {
-  filter: brightness(1.05);
-}
-
-.btn:active {
-  transform: translateY(1px);
-}
-
-.led-state {
-  margin: 4px 0;
-  font-size: 0.92rem;
-}
-
-.led-state span.on {
-  color: #4ade80;
-}
-
-.led-state span.off {
-  color: #fca5a5;
-}
-
-.error {
-  margin: 4px 0;
-  color: #fecaca;
-  font-size: 0.86rem;
-}
-
-.note {
-  margin: 6px 0 0;
-  font-size: 0.8rem;
-  color: #9ca3af;
-}
-</style>

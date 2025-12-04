@@ -44,7 +44,7 @@ typedef struct
 {
   P2PS_APP__Opcode_Notification_evt_t   P2P_Evt_Opcode;
   uint16_t                              ConnectionHandle;
-}P2PS_APP_ConnHandle_Not_evt_t;
+} P2PS_APP_ConnHandle_Not_evt_t;
 /* USER CODE BEGIN ET */
 
 /* USER CODE END ET */
@@ -65,11 +65,11 @@ typedef struct
 /* USER CODE END EM */
 
 /* Exported functions ---------------------------------------------*/
-  void P2PS_APP_Init( void );
-  void P2PS_APP_Notification( P2PS_APP_ConnHandle_Not_evt_t *pNotification );
+void P2PS_APP_Init( void );
+void P2PS_APP_Notification( P2PS_APP_ConnHandle_Not_evt_t *pNotification );
 /* USER CODE BEGIN EF */
-  void P2PS_APP_SW1_Button_Action( void );
-
+void P2PS_APP_SW1_Button_Action( void );
+void P2PS_APP_Clock_1Hz_Tick( void );
 /* USER CODE END EF */
 
 #ifdef __cplusplus

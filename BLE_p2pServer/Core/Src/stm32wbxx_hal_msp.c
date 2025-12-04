@@ -20,8 +20,9 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-/* USER CODE BEGIN Includes */
 
+/* USER CODE BEGIN Includes */
+#include "p2p_server_app.h"
 /* USER CODE END Includes */
 extern DMA_HandleTypeDef hdma_lpuart1_tx;
 
@@ -450,5 +451,15 @@ void HAL_RTC_MspDeInit(RTC_HandleTypeDef* hrtc)
 }
 
 /* USER CODE BEGIN 1 */
+/**
+  * @brief RTC WakeUp Timer callback
+  * This is called periodically by the RTC (configured in MX_RTC_Init).
+  * We use it as our 1 Hz-ish tick to update the clock and check the alarm.
+  */
+void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
+{
+  /* You can check hrtc->Instance == RTC if you want, but there is only one RTC */
+  P2PS_APP_Clock_1Hz_Tick();
+}
 
 /* USER CODE END 1 */
