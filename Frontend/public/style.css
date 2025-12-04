@@ -1,0 +1,112 @@
+/* -----------------------------
+   GLOBAL STYLES
+----------------------------- */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background-color: #f4f6f9;
+  color: #1f2937;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Center main app area */
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* -----------------------------
+   HEADER
+----------------------------- */
+header {
+  text-align: center;
+  background-color: #1e3a5f;
+  color: white;
+  padding: 1.25rem 1rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+header p {
+  margin: 0.25rem 0 0;
+  opacity: 0.85;
+}
+
+/* -----------------------------
+   BUTTONS
+----------------------------- */
+button {
+  background-color: #1e3a5f;
+  color: white;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+button:hover {
+  background-color: #274c80;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* -----------------------------
+   STATUS STYLES
+----------------------------- */
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.status-label {
+  font-weight: 500;
+}
+
+.status-pill {
+  min-width: 70px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.status-pill.on {
+  background-color: #e6ffed;
+  color: #0c7a43;
+  border: 1px solid #b9eccd;
+}
+
+.status-pill.off {
+  background-color: #ffecec;
+  color: #b3261e;
+  border: 1px solid #ffd6d6;
+}
+
+/* -----------------------------
+   CARD LAYOUT
+----------------------------- */
+.card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  padding: 24px;
+  max-width: 420px;
+  margin: 15vh auto 0;
+  text-align: center;
+}
