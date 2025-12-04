@@ -80,7 +80,7 @@ static P2P_Server_App_Context_t P2P_Server_App_Context;
  * END of Section BLE_APP_CONTEXT
  */
 
-/* Clock/alarm state */
+/* Clock/alarm state (for BLE alarm logic) */
 static volatile ClockTime_t g_CurrentTime = {0, 0, 0};
 static volatile ClockTime_t g_AlarmTime   = {0, 0, 0};
 static volatile uint8_t     g_AlarmEnabled = 0;  /* 1 = alarm armed */
@@ -145,6 +145,7 @@ void P2PS_STM_App_Notification(P2PS_STM_App_Notification_evt_t *pNotification)
        *
        * The MCU will:
        *   - Sync its internal clock to (current hour, minute), seconds = 0
+       *   - Also call Clock_SetTime() so the LCD clock jumps to that time
        *   - Set the alarm time to (alarm hour, minute), seconds = 0
        *   - Enable the alarm
        *   - Turn BLUE LED ON to indicate an alarm is armed
@@ -158,12 +159,15 @@ void P2PS_STM_App_Notification(P2PS_STM_App_Notification_evt_t *pNotification)
       uint8_t alarmMinute= p[3];
 
       /* Basic range checks – clamp to valid ranges so bad input doesn’t break us */
-      if (currHour >= 24)   currHour   = 0;
+      if (currHour   >= 24) currHour   = 0;
       if (currMinute >= 60) currMinute = 0;
-      if (alarmHour >= 24)  alarmHour  = 0;
-      if (alarmMinute >= 60)alarmMinute= 0;
+      if (alarmHour  >= 24) alarmHour  = 0;
+      if (alarmMinute>= 60) alarmMinute= 0;
 
-      /* Sync current time */
+      /* Tell your groupmate's clock code (in main.c) to jump to this time */
+      Clock_SetTime(currHour, currMinute, 0);
+
+      /* Sync local copy used for BLE alarm logic */
       g_CurrentTime.hours   = currHour;
       g_CurrentTime.minutes = currMinute;
       g_CurrentTime.seconds = 0;
@@ -180,7 +184,7 @@ void P2PS_STM_App_Notification(P2PS_STM_App_Notification_evt_t *pNotification)
 
       APP_DBG_MSG("-- P2P APPLICATION SERVER : TIME SYNC %02d:%02d, ALARM SET %02d:%02d\n",
                   (int)g_CurrentTime.hours, (int)g_CurrentTime.minutes,
-                  (int)g_AlarmTime.hours, (int)g_AlarmTime.minutes);
+                  (int)g_AlarmTime.hours,   (int)g_AlarmTime.minutes);
       APP_DBG_MSG(" \n\r");
     }
 /* USER CODE END P2PS_STM_WRITE_EVT */

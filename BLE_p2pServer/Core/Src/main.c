@@ -1,39 +1,18 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
- * @file    main.c
- * @author  MCD Application Team
- * @brief   BLE application with BLE core
- *
+  * @file           : main.c
+  * @brief          : Main program body
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2019-2021 STMicroelectronics.
+  * Copyright (c) 2025 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
   * in the root directory of this software component.
   * If no LICENSE file comes with this software, it is provided AS-IS.
   *
-  ******************************************************************************
-  @verbatim
-  ==============================================================================
-                    ##### IMPORTANT NOTE #####
-  ==============================================================================
-
-  This application requests having the stm32wb5x_BLE_Stack_fw.bin binary
-  flashed on the Wireless Coprocessor.
-  If it is not the case, you need to use STM32CubeProgrammer to load the appropriate
-  binary.
-
-  All available binaries are located under following directory:
-  /Projects/STM32_Copro_Wireless_Binaries
-
-  Refer to UM2237 to learn how to use/install STM32CubeProgrammer.
-  Refer to /Projects/STM32_Copro_Wireless_Binaries/ReleaseNote.html for the
-  detailed procedure to change the Wireless Coprocessor binary.
-
-  @endverbatim
   ******************************************************************************
   */
 /* USER CODE END Header */
@@ -42,12 +21,18 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>   // for snprintf
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct task
+{
+    int state;
+    unsigned long period;
+    unsigned long elaspedTime;
+    int (*Function) (int);
+} task;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -61,36 +46,287 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-IPCC_HandleTypeDef hipcc;
+I2C_HandleTypeDef hi2c1;
 
-UART_HandleTypeDef hlpuart1;
-UART_HandleTypeDef huart1;
-DMA_HandleTypeDef hdma_lpuart1_tx;
-DMA_HandleTypeDef hdma_usart1_tx;
-
-RNG_HandleTypeDef hrng;
-
-RTC_HandleTypeDef hrtc;
+TIM_HandleTypeDef htim1;
 
 /* USER CODE BEGIN PV */
+const unsigned int numTasks = 2;
+const unsigned long period   = 1;     // base scheduler tick (ms)
+const unsigned long TL_period = 1000; // 1s
+const unsigned long UL_period = 1000; // 1s
 
+volatile uint8_t timerFlag = 0;
+
+task tasks[2];
+
+/* Shared clock time (24-hour) so other modules (BLE, etc.) can set/read it */
+volatile uint8_t g_hours   = 0;
+volatile uint8_t g_minutes = 0;
+volatile uint8_t g_seconds = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_DMA_Init(void);
-static void MX_RTC_Init(void);
-static void MX_IPCC_Init(void);
-static void MX_RNG_Init(void);
-static void MX_RF_Init(void);
+static void MX_TIM1_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
+
+/* Allow other files to set the clock time if you want to extern this later */
+/* void Clock_SetTime(uint8_t hour24, uint8_t minute, uint8_t second); */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// LCD Display
+
+#define LCD_RS_GPIO_PORT   GPIOA
+#define LCD_RS_PIN         GPIO_PIN_2
+
+#define LCD_E_GPIO_PORT    GPIOA
+#define LCD_E_PIN          GPIO_PIN_3
+
+#define LCD_D4_GPIO_PORT   GPIOA
+#define LCD_D4_PIN         GPIO_PIN_5
+#define LCD_D5_GPIO_PORT   GPIOA
+#define LCD_D5_PIN         GPIO_PIN_0
+#define LCD_D6_GPIO_PORT   GPIOA
+#define LCD_D6_PIN         GPIO_PIN_1
+#define LCD_D7_GPIO_PORT   GPIOA
+#define LCD_D7_PIN         GPIO_PIN_4
+
+void LCD_EnablePulse(void)
+{
+    HAL_GPIO_WritePin(LCD_E_GPIO_PORT, LCD_E_PIN, GPIO_PIN_SET);
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(LCD_E_GPIO_PORT, LCD_E_PIN, GPIO_PIN_RESET);
+}
+
+void LCD_ToggleEnablePulse(void)
+{
+    HAL_GPIO_TogglePin(LCD_E_GPIO_PORT, LCD_E_PIN);
+}
+
+void LCD_Send4Bits(uint8_t data)
+{
+    HAL_GPIO_WritePin(LCD_D4_GPIO_PORT, LCD_D4_PIN, (data & 0x01) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LCD_D5_GPIO_PORT, LCD_D5_PIN, (data & 0x02) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LCD_D6_GPIO_PORT, LCD_D6_PIN, (data & 0x04) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LCD_D7_GPIO_PORT, LCD_D7_PIN, (data & 0x08) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
+
+void LCD_Send(uint8_t value, uint8_t isData)
+{
+    // RS
+    HAL_GPIO_WritePin(LCD_RS_GPIO_PORT, LCD_RS_PIN,
+                      isData ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+    // high nibble
+    LCD_Send4Bits(value >> 4);
+    LCD_EnablePulse();
+
+    // low nibble
+    LCD_Send4Bits(value & 0x0F);
+    LCD_EnablePulse();
+}
+
+void LCD_Command(uint8_t cmd)
+{
+    LCD_Send(cmd, 0);
+}
+
+void LCD_Data(uint8_t data)
+{
+    LCD_Send(data, 1);
+}
+
+void LCD_Init(void)
+{
+    HAL_Delay(50);
+
+    LCD_Send4Bits(0x03);
+    LCD_EnablePulse();
+    HAL_Delay(5);
+
+    LCD_Send4Bits(0x03);
+    LCD_EnablePulse();
+    HAL_Delay(5);
+
+    LCD_Send4Bits(0x03);
+    LCD_EnablePulse();
+    HAL_Delay(5);
+
+    LCD_Send4Bits(0x02);
+    LCD_EnablePulse();
+    HAL_Delay(5);
+
+    // function set: 4-bit, 2 lines, 5x8 font
+    LCD_Command(0x28);
+    // display off
+    LCD_Command(0x08);
+    // clear
+    LCD_Command(0x01);
+    HAL_Delay(2);
+    // entry mode: increment, no shift
+    LCD_Command(0x06);
+    // display on, cursor off, blink off
+    LCD_Command(0x0C);
+}
+
+void LCD_SetCursor(uint8_t col, uint8_t row)
+{
+    uint8_t row_offsets[] = {0x00, 0x40, 0x14, 0x54};
+    LCD_Command(0x80 | (col + row_offsets[row]));
+}
+
+void LCD_Print(char *str)
+{
+    while (*str)
+    {
+        LCD_Data((uint8_t)*str++);
+    }
+}
+
+// I2C / INA219
+
+#define INA1_ADDR   (0x40 << 1)
+#define INA2_ADDR   (0x41 << 1)
+
+#define INA219_REG_CONFIG   0x00
+#define INA219_REG_SHUNT_V  0x01
+#define INA219_REG_BUS_V    0x02
+#define INA219_REG_POWER    0x03
+#define INA219_REG_CURRENT  0x04
+#define INA219_REG_CALIB    0x05
+
+static uint16_t INA219_ReadReg(uint16_t addr, uint8_t reg)
+{
+    uint8_t buf[2];
+    if (HAL_I2C_Mem_Read(&hi2c1, addr, reg, I2C_MEMADD_SIZE_8BIT, buf, 2, HAL_MAX_DELAY) != HAL_OK)
+        return 0;
+    return (uint16_t)((buf[0] << 8) | buf[1]);
+}
+
+static void INA219_WriteReg(uint16_t addr, uint8_t reg, uint16_t val)
+{
+    uint8_t buf[2] = { (uint8_t)(val >> 8), (uint8_t)(val & 0xFF) };
+    HAL_I2C_Mem_Write(&hi2c1, addr, reg, I2C_MEMADD_SIZE_8BIT, buf, 2, HAL_MAX_DELAY);
+}
+
+static void INA219_Init()
+{
+    float currentLSB_A = 0.0001f;
+    uint16_t calib = (uint16_t)(0.04096f / (currentLSB_A * 0.1));
+    INA219_WriteReg(INA1_ADDR, INA219_REG_CONFIG, 0x399F);
+    INA219_WriteReg(INA1_ADDR, INA219_REG_CALIB, calib);
+    INA219_WriteReg(INA2_ADDR, INA219_REG_CONFIG, 0x399F);
+    INA219_WriteReg(INA2_ADDR, INA219_REG_CALIB, calib);
+}
+
+static float INA219_GetBusVoltage_V_Addr(uint16_t addr)
+{
+    uint16_t v = INA219_ReadReg(addr, INA219_REG_BUS_V);
+    v >>= 3;
+    return v * 0.004f;
+}
+
+static float INA219_GetCurrent(uint16_t addr)
+{
+    int16_t raw = (int16_t)INA219_ReadReg(addr, INA219_REG_CURRENT);
+    return raw * 0.1f;
+}
+
+/* ===== Shared clock API so BLE/frontend can set the time ===== */
+
+void Clock_SetTime(uint8_t hour24, uint8_t minute, uint8_t second)
+{
+    if (hour24 >= 24)  hour24  = 0;
+    if (minute >= 60)  minute  = 0;
+    if (second >= 60)  second  = 0;
+
+    g_hours   = hour24;
+    g_minutes = minute;
+    g_seconds = second;
+}
+
+/* ===== Task state machines ===== */
+
+enum TL_states {TL0, TL1, TL2};
+int ThreeLED(int state)
+{
+    switch(state)
+    {
+        case TL0:
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
+            state = TL1;
+            break;
+        case TL1:
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
+            state = TL2;
+            break;
+        case TL2:
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
+            state = TL0;
+            break;
+        default:
+            state = TL0;
+            break;
+    }
+    return state;
+}
+
+enum UL_states {UL0, UL1};
+
+int UpdateLCD(int state)
+{
+    GPIO_PinState s = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_7);
+    if (s == GPIO_PIN_SET) HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
+
+    switch (state)
+    {
+        case UL0:
+        {
+            /* Tick the shared clock once per second.
+               This task runs every 1000 ms in your scheduler. */
+            g_seconds++;
+            if (g_seconds >= 60)
+            {
+                g_seconds = 0;
+                g_minutes++;
+            }
+            if (g_minutes >= 60)
+            {
+                g_minutes = 0;
+                g_hours = (g_hours + 1) % 24;
+            }
+
+            char timebuf[17];
+            snprintf(timebuf, sizeof(timebuf), "%02u::%02u::%02u",
+                     g_hours, g_minutes, g_seconds);
+
+            // write without clearing whole display
+            LCD_SetCursor(0, 0);
+            LCD_Print("System Time   ");
+
+            LCD_SetCursor(0, 1);
+            LCD_Print(timebuf);
+            break;
+        }
+        default:
+            break;
+    }
+    return state;
+}
 
 /* USER CODE END 0 */
 
@@ -103,14 +339,22 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 
+    tasks[0].state        = TL0;
+    tasks[0].period       = TL_period;
+    tasks[0].elaspedTime  = TL_period;
+    tasks[0].Function     = &ThreeLED;
+
+    tasks[1].state        = UL0;
+    tasks[1].period       = UL_period;
+    tasks[1].elaspedTime  = UL_period;
+    tasks[1].Function     = &UpdateLCD;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-  /* Config code for STM32_WPAN (HSE Tuning must be done before system clock configuration) */
-  MX_APPE_Config();
 
   /* USER CODE BEGIN Init */
 
@@ -122,34 +366,48 @@ int main(void)
   /* Configure the peripherals common clocks */
   PeriphCommonClock_Config();
 
-  /* IPCC initialisation */
-  MX_IPCC_Init();
-
   /* USER CODE BEGIN SysInit */
 
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_RTC_Init();
-  MX_RNG_Init();
-  MX_RF_Init();
+  MX_TIM1_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+
+  LCD_Init();
+
+  INA219_Init();
+
+  HAL_TIM_Base_Start_IT(&htim1);
+
+  /* Optionally, set an initial time here */
+  Clock_SetTime(5, 16, 0);
 
   /* USER CODE END 2 */
 
-  /* Init code for STM32_WPAN */
-  MX_APPE_Init();
-
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-	while(1)
-	{
+  while (1)
+  {
     /* USER CODE END WHILE */
-    MX_APPE_Process();
 
     /* USER CODE BEGIN 3 */
+    if (timerFlag)
+    {
+        timerFlag = 0;
+        unsigned char i;
+        for (i = 0; i < numTasks; i++)
+        {
+            if (tasks[i].elaspedTime >= tasks[i].period)
+            {
+                tasks[i].state = tasks[i].Function(tasks[i].state);
+                tasks[i].elaspedTime = 0;
+            }
+            tasks[i].elaspedTime += period;
+        }
+    }
   }
   /* USER CODE END 3 */
 }
@@ -163,11 +421,6 @@ void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  /** Configure LSE Drive Capability
-  */
-  HAL_PWR_EnableBkUpAccess();
-  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
-
   /** Configure the main internal regulator output voltage
   */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
@@ -175,13 +428,12 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI
-                              |RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
+  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_10;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -193,7 +445,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK4|RCC_CLOCKTYPE_HCLK2
                               |RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSE;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
@@ -216,10 +468,9 @@ void PeriphCommonClock_Config(void)
 
   /** Initializes the peripherals clock
   */
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SMPS|RCC_PERIPHCLK_RFWAKEUP;
-  PeriphClkInitStruct.RFWakeUpClockSelection = RCC_RFWKPCLKSOURCE_LSE;
-  PeriphClkInitStruct.SmpsClockSelection = RCC_SMPSCLKSOURCE_HSE;
-  PeriphClkInitStruct.SmpsDivSelection = RCC_SMPSCLKDIV_RANGE1;
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SMPS;
+  PeriphClkInitStruct.SmpsClockSelection = RCC_SMPSCLKSOURCE_HSI;
+  PeriphClkInitStruct.SmpsDivSelection = RCC_SMPSCLKDIV_RANGE0;
 
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
@@ -231,236 +482,97 @@ void PeriphCommonClock_Config(void)
 }
 
 /**
-  * @brief IPCC Initialization Function
+  * @brief I2C1 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_IPCC_Init(void)
+static void MX_I2C1_Init(void)
 {
 
-  /* USER CODE BEGIN IPCC_Init 0 */
+  /* USER CODE BEGIN I2C1_Init 0 */
 
-  /* USER CODE END IPCC_Init 0 */
+  /* USER CODE END I2C1_Init 0 */
 
-  /* USER CODE BEGIN IPCC_Init 1 */
+  /* USER CODE BEGIN I2C1_Init 1 */
 
-  /* USER CODE END IPCC_Init 1 */
-  hipcc.Instance = IPCC;
-  if (HAL_IPCC_Init(&hipcc) != HAL_OK)
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.Timing = 0x00B07CB4;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN IPCC_Init 2 */
 
-  /* USER CODE END IPCC_Init 2 */
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
 
 }
 
 /**
-  * @brief LPUART1 Initialization Function
+  * @brief TIM1 Initialization Function
   * @param None
   * @retval None
   */
-void MX_LPUART1_UART_Init(void)
+static void MX_TIM1_Init(void)
 {
 
-  /* USER CODE BEGIN LPUART1_Init 0 */
+  /* USER CODE BEGIN TIM1_Init 0 */
 
-  /* USER CODE END LPUART1_Init 0 */
+  /* USER CODE END TIM1_Init 0 */
 
-  /* USER CODE BEGIN LPUART1_Init 1 */
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
 
-  /* USER CODE END LPUART1_Init 1 */
-  hlpuart1.Instance = LPUART1;
-  hlpuart1.Init.BaudRate = 115200;
-  hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
-  hlpuart1.Init.StopBits = UART_STOPBITS_1;
-  hlpuart1.Init.Parity = UART_PARITY_NONE;
-  hlpuart1.Init.Mode = UART_MODE_TX_RX;
-  hlpuart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  hlpuart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  hlpuart1.Init.ClockPrescaler = UART_PRESCALER_DIV1;
-  hlpuart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  hlpuart1.FifoMode = UART_FIFOMODE_DISABLE;
-  if (HAL_UART_Init(&hlpuart1) != HAL_OK)
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 31;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 999;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_UARTEx_SetTxFifoThreshold(&hlpuart1, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_UARTEx_SetRxFifoThreshold(&hlpuart1, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_UARTEx_DisableFifoMode(&hlpuart1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN LPUART1_Init 2 */
+  /* USER CODE BEGIN TIM1_Init 2 */
 
-  /* USER CODE END LPUART1_Init 2 */
-
-}
-
-/**
-  * @brief USART1 Initialization Function
-  * @param None
-  * @retval None
-  */
-void MX_USART1_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART1_Init 0 */
-
-  /* USER CODE END USART1_Init 0 */
-
-  /* USER CODE BEGIN USART1_Init 1 */
-
-  /* USER CODE END USART1_Init 1 */
-  huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
-  huart1.Init.WordLength = UART_WORDLENGTH_8B;
-  huart1.Init.StopBits = UART_STOPBITS_1;
-  huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_TX_RX;
-  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart1.Init.OverSampling = UART_OVERSAMPLING_8;
-  huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart1.Init.ClockPrescaler = UART_PRESCALER_DIV1;
-  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  if (HAL_UART_Init(&huart1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_UARTEx_SetTxFifoThreshold(&huart1, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_UARTEx_SetRxFifoThreshold(&huart1, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_UARTEx_DisableFifoMode(&huart1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART1_Init 2 */
-
-  /* USER CODE END USART1_Init 2 */
-
-}
-
-/**
-  * @brief RF Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_RF_Init(void)
-{
-
-  /* USER CODE BEGIN RF_Init 0 */
-
-  /* USER CODE END RF_Init 0 */
-
-  /* USER CODE BEGIN RF_Init 1 */
-
-  /* USER CODE END RF_Init 1 */
-  /* USER CODE BEGIN RF_Init 2 */
-
-  /* USER CODE END RF_Init 2 */
-
-}
-
-/**
-  * @brief RNG Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_RNG_Init(void)
-{
-
-  /* USER CODE BEGIN RNG_Init 0 */
-
-  /* USER CODE END RNG_Init 0 */
-
-  /* USER CODE BEGIN RNG_Init 1 */
-
-  /* USER CODE END RNG_Init 1 */
-  hrng.Instance = RNG;
-  hrng.Init.ClockErrorDetection = RNG_CED_ENABLE;
-  if (HAL_RNG_Init(&hrng) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN RNG_Init 2 */
-
-  /* USER CODE END RNG_Init 2 */
-
-}
-
-/**
-  * @brief RTC Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_RTC_Init(void)
-{
-
-  /* USER CODE BEGIN RTC_Init 0 */
-
-  /* USER CODE END RTC_Init 0 */
-
-  /* USER CODE BEGIN RTC_Init 1 */
-
-  /* USER CODE END RTC_Init 1 */
-
-  /** Initialize RTC Only
-  */
-  hrtc.Instance = RTC;
-  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
-  hrtc.Init.AsynchPrediv = CFG_RTC_ASYNCH_PRESCALER;
-  hrtc.Init.SynchPrediv = CFG_RTC_SYNCH_PRESCALER;
-  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
-  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
-  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
-  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
-  if (HAL_RTC_Init(&hrtc) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Enable the WakeUp
-  */
-  if (HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 0, RTC_WAKEUPCLOCK_RTCCLK_DIV16) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN RTC_Init 2 */
-
-  /* USER CODE END RTC_Init 2 */
-
-}
-
-/**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMAMUX1_CLK_ENABLE();
-  __HAL_RCC_DMA1_CLK_ENABLE();
-  __HAL_RCC_DMA2_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA1_Channel4_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 15, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
-  /* DMA2_Channel4_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Channel4_IRQn, 15, 0);
-  HAL_NVIC_EnableIRQ(DMA2_Channel4_IRQn);
+  /* USER CODE END TIM1_Init 2 */
 
 }
 
@@ -473,28 +585,56 @@ static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
+
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
+                          |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : LED_BLUE_Pin */
-  GPIO_InitStruct.Pin = LED_BLUE_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_5, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : PA0 PA1 PA2 PA3
+                           PA4 PA5 PA6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
+                          |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED_BLUE_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB0 PB1 PB5 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
+
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM1)
+    {
+        timerFlag = 1;
+    }
+}
 
 /* USER CODE END 4 */
 
@@ -505,12 +645,14 @@ static void MX_GPIO_Init(void)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-
+  __disable_irq();
+  while (1)
+  {
+  }
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.
@@ -521,8 +663,8 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  (void)file;
+  (void)line;
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
