@@ -93,7 +93,7 @@ const unsigned int  numTasks   = 4;
 const unsigned long basePeriod = 1;
 const unsigned long TL_period  = 1000;
 const unsigned long UL_period  = 1000;
-const unsigned long SL_period  = 1000;
+const unsigned long SL_period  = 1;
 const unsigned long DA_period  = 10;
 
 task tasks[4];
@@ -546,15 +546,7 @@ int main(void)
     MX_APPE_Process();
 
     /* USER CODE BEGIN 3 */
-    uint32_t now = HAL_GetTick();
-    for (unsigned int i = 0; i < numTasks; i++)
-    {
-      if ((now - tasks[i].elapsedTime) >= tasks[i].period)
-      {
-        tasks[i].state = tasks[i].Function(tasks[i].state);
-        tasks[i].elapsedTime = now;
-      }
-    }
+
     /* USER CODE END 3 */
   }
 }
@@ -896,6 +888,22 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM1)
+    {
+    	unsigned char i;
+     for(i = 0; i < numTasks; i++)
+     {
+       if(tasks[i].elaspedTime >= tasks[i].period)
+       {
+        tasks[i].state = tasks[i].Function (tasks[i].state);
+        tasks[i].elaspedTime = 0;
+       }
+       tasks[i].elaspedTime += period;
+     }
+    }
+}
 /* USER CODE END 4 */
 
 /**
