@@ -1,5 +1,5 @@
 Drivers/STM32WBxx_HAL_Driver/stm32wbxx_hal_flash.o: \
- C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Drivers/STM32WBxx_HAL_Driver/Src/stm32wbxx_hal_flash.c \
+ C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Drivers/STM32WBxx_HAL_Driver/Src/stm32wbxx_hal_flash.c \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h \
  ../../Core/Inc/stm32wbxx_hal_conf.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_dma.h \
@@ -23,6 +23,8 @@ Drivers/STM32WBxx_HAL_Driver/stm32wbxx_hal_flash.o: \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h \
@@ -62,6 +64,8 @@ Drivers/STM32WBxx_HAL_Driver/stm32wbxx_hal_flash.o: \
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h:

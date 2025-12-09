@@ -1,7 +1,7 @@
 Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo.o: \
- C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo.c \
- C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo.h \
- C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo_errno.h \
+ C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo.c \
+ C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo.h \
+ C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo_errno.h \
  ../../Core/Inc/stm32wbxx_nucleo_conf.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h \
  ../../Core/Inc/stm32wbxx_hal_conf.h \
@@ -26,6 +26,8 @@ Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo.o: \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h \
@@ -42,8 +44,8 @@ Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo.o: \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_uart.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_uart_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h
-C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo.h:
-C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo_errno.h:
+C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo.h:
+C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo_errno.h:
 ../../Core/Inc/stm32wbxx_nucleo_conf.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h:
 ../../Core/Inc/stm32wbxx_hal_conf.h:
@@ -68,6 +70,8 @@ C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Drivers/BSP/P-NUCLEO-WB55.Nu
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h:

@@ -1,5 +1,5 @@
 Drivers/CMSIS/system_stm32wbxx.o: \
- C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Projects/P-NUCLEO-WB55.Nucleo/Applications/BLE/BLE_p2pServer/Core/Src/system_stm32wbxx.c \
+ C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Projects/P-NUCLEO-WB55.Nucleo/Applications/BLE/BLE_p2pServer/Core/Src/system_stm32wbxx.c \
  ../../../../../../../Drivers/CMSIS/Device/ST/STM32WBxx/Include/stm32wbxx.h \
  ../../../../../../../Drivers/CMSIS/Device/ST/STM32WBxx/Include/stm32wb55xx.h \
  ../../../../../../../Drivers/CMSIS/Include/core_cm4.h \
@@ -23,6 +23,8 @@ Drivers/CMSIS/system_stm32wbxx.o: \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h \
@@ -62,6 +64,8 @@ Drivers/CMSIS/system_stm32wbxx.o: \
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h:

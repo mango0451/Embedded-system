@@ -1059,7 +1059,7 @@ static void Ble_Hci_Gap_Gatt_Init(void)
 
   if (role > 0)
   {
-    const char *name = "Embedded STM32";
+    const char *name = "P2PSRV1";
     ret = aci_gap_init(role,
                        CFG_PRIVACY,
                        APPBLE_GAP_DEVICE_NAME_LENGTH,

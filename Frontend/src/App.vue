@@ -1,14 +1,13 @@
 <!-- App.vue -->
 <script setup>
 import BuzzerControl from './components/BuzzerControl.vue'
-// or './components/BuzzerControl.vue' if you keep it in /components
 </script>
 
 <template>
   <main class="app-shell">
     <header class="app-header">
-      <h1>STM32 BLE LED Control</h1>
-      <p>Use Web Bluetooth to toggle the onboard LED</p>
+      <h1>STM32 BLE Clock & Alarm</h1>
+      <p>Sync time and set an alarm over Web Bluetooth</p>
     </header>
 
     <section class="content">

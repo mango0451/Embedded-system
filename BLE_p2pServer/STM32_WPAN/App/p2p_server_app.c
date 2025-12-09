@@ -2,7 +2,7 @@
 /**
   ******************************************************************************
   * @file    p2p_server_app.c
-  * @author  MCD Application Team
+  * @author  MCD Application Team / Rhett
   * @brief   Peer to peer Server Application
   ******************************************************************************
   * @attention
@@ -28,11 +28,14 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+/* Clock_SetTime / Clock_SetAlarm are implemented in main.c */
+extern void Clock_SetTime (uint8_t hour24, uint8_t minute, uint8_t second);
+extern void Clock_SetAlarm(uint8_t hour24, uint8_t minute);
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
 typedef struct{
   uint8_t             Device_Led_Selection;
   uint8_t             Led1;
@@ -51,13 +54,6 @@ typedef struct
   uint16_t              ConnectionHandle;
 } P2P_Server_App_Context_t;
 
-/* Simple time structure for clock + alarm */
-typedef struct
-{
-  uint8_t hours;   /* 0–23   */
-  uint8_t minutes; /* 0–59   */
-  uint8_t seconds; /* 0–59   */
-} ClockTime_t;
 /* USER CODE END PTD */
 
 /* Private defines ------------------------------------------------------------*/
@@ -79,12 +75,6 @@ static P2P_Server_App_Context_t P2P_Server_App_Context;
 /**
  * END of Section BLE_APP_CONTEXT
  */
-
-/* Clock/alarm state (for BLE alarm logic) */
-static volatile ClockTime_t g_CurrentTime = {0, 0, 0};
-static volatile ClockTime_t g_AlarmTime   = {0, 0, 0};
-static volatile uint8_t     g_AlarmEnabled = 0;  /* 1 = alarm armed */
-static volatile uint8_t     g_AlarmActive  = 0;  /* 1 = alarm currently ringing */
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -92,9 +82,10 @@ static volatile uint8_t     g_AlarmActive  = 0;  /* 1 = alarm currently ringing 
 static void P2PS_Send_Notification(void);
 static void P2PS_APP_LED_BUTTON_context_Init(void);
 
-/* Local helpers */
-static void Clock_Increment_OneSecond(void);
-static void Alarm_CheckAndTrigger(void);
+
+void P2PS_APP_PublishTime(uint8_t hour24, uint8_t minute, uint8_t second);
+void P2PS_APP_PublishSensors(int16_t mv1, int16_t ma1,
+                             int16_t mv2, int16_t ma2);
 /* USER CODE END PFP */
 
 /* Functions Definition ------------------------------------------------------*/
@@ -106,7 +97,7 @@ void P2PS_STM_App_Notification(P2PS_STM_App_Notification_evt_t *pNotification)
   switch(pNotification->P2P_Evt_Opcode)
   {
 /* USER CODE BEGIN P2PS_STM_App_Notification_P2P_Evt_Opcode */
-#if(BLE_CFG_OTA_REBOOT_CHAR != 0)
+#if (BLE_CFG_OTA_REBOOT_CHAR != 0)
     case P2PS_STM_BOOT_REQUEST_EVT:
       APP_DBG_MSG("-- P2P APPLICATION SERVER : BOOT REQUESTED\n");
       APP_DBG_MSG(" \n\r");
@@ -137,54 +128,52 @@ void P2PS_STM_App_Notification(P2PS_STM_App_Notification_evt_t *pNotification)
 /* USER CODE BEGIN P2PS_STM_WRITE_EVT */
     {
       /*
-       * BLE payload format (from frontend):
-       *   p[0] = current hour   (0–23)
-       *   p[1] = current minute (0–59)
-       *   p[2] = alarm hour     (0–23)
-       *   p[3] = alarm minute   (0–59)
+       * 2-byte protocol from the Web UI:
        *
-       * The MCU will:
-       *   - Sync its internal clock to (current hour, minute), seconds = 0
-       *   - Also call Clock_SetTime() so the LCD clock jumps to that time
-       *   - Set the alarm time to (alarm hour, minute), seconds = 0
-       *   - Enable the alarm
-       *   - Turn BLUE LED ON to indicate an alarm is armed
+       *   p[0] = hour (0–23) + optional command bit in bit 7
+       *   p[1] = minute (0–59)
+       *
+       * If bit7 of p[0] == 0 → TIME frame:  Clock_SetTime(hour, minute, 0)
+       * If bit7 of p[0] == 1 → ALARM frame: Clock_SetAlarm(hour & 0x7F, minute)
        */
 
-      uint8_t *p = pNotification->DataTransfered.pPayload;
+      uint8_t len = pNotification->DataTransfered.Length;
+      uint8_t *p  = pNotification->DataTransfered.pPayload;
 
-      uint8_t currHour   = p[0];
-      uint8_t currMinute = p[1];
-      uint8_t alarmHour  = p[2];
-      uint8_t alarmMinute= p[3];
+      APP_DBG_MSG("-- P2P SERVER : WRITE EVT len=%d\n", len);
 
-      /* Basic range checks – clamp to valid ranges so bad input doesn’t break us */
-      if (currHour   >= 24) currHour   = 0;
-      if (currMinute >= 60) currMinute = 0;
-      if (alarmHour  >= 24) alarmHour  = 0;
-      if (alarmMinute>= 60) alarmMinute= 0;
+      if (len != 2)
+      {
+        APP_DBG_MSG("-- P2P SERVER : INVALID LENGTH %d (expect 2)\n", (int)len);
+        APP_DBG_MSG(" \n\r");
+        break;
+      }
 
-      /* Tell your groupmate's clock code (in main.c) to jump to this time */
-      Clock_SetTime(currHour, currMinute, 0);
+      uint8_t rawHour = p[0];
+      uint8_t minute  = p[1];
 
-      /* Sync local copy used for BLE alarm logic */
-      g_CurrentTime.hours   = currHour;
-      g_CurrentTime.minutes = currMinute;
-      g_CurrentTime.seconds = 0;
+      uint8_t isAlarm = (rawHour & 0x80) ? 1 : 0;
+      uint8_t hour    = (rawHour & 0x7F);  /* strip command bit if present */
 
-      /* Set alarm time */
-      g_AlarmTime.hours   = alarmHour;
-      g_AlarmTime.minutes = alarmMinute;
-      g_AlarmTime.seconds = 0;
+      /* Clamp ranges */
+      if (hour   >= 24) hour   = 0;
+      if (minute >= 60) minute = 0;
 
-      /* Arm alarm and indicate with LED */
-      g_AlarmEnabled = 1;
-      g_AlarmActive  = 0;
-      BSP_LED_On(LED_BLUE);
+      if (!isAlarm)
+      {
+        /* TIME frame */
+        Clock_SetTime(hour, minute, 0);
+        APP_DBG_MSG("-- P2P SERVER : TIME SYNC %02d:%02d:00\n",
+                    (int)hour, (int)minute);
+      }
+      else
+      {
+        /* ALARM frame */
+        Clock_SetAlarm(hour, minute);
+        APP_DBG_MSG("-- P2P SERVER : ALARM SET %02d:%02d\n",
+                    (int)hour, (int)minute);
+      }
 
-      APP_DBG_MSG("-- P2P APPLICATION SERVER : TIME SYNC %02d:%02d, ALARM SET %02d:%02d\n",
-                  (int)g_CurrentTime.hours, (int)g_CurrentTime.minutes,
-                  (int)g_AlarmTime.hours,   (int)g_AlarmTime.minutes);
       APP_DBG_MSG(" \n\r");
     }
 /* USER CODE END P2PS_STM_WRITE_EVT */
@@ -212,18 +201,25 @@ void P2PS_APP_Notification(P2PS_APP_ConnHandle_Not_evt_t *pNotification)
 /* USER CODE BEGIN P2PS_APP_Notification_P2P_Evt_Opcode */
 
 /* USER CODE END P2PS_APP_Notification_P2P_Evt_Opcode */
-    case PEER_CONN_HANDLE_EVT :
+  case PEER_CONN_HANDLE_EVT :
 /* USER CODE BEGIN PEER_CONN_HANDLE_EVT */
-      /* Nothing special on connect for now */
+    P2P_Server_App_Context.ConnectionHandle = pNotification->ConnectionHandle;
+    APP_DBG_MSG("-- P2P APPLICATION SERVER : PEER CONNECTED, HANDLE=0x%04X\n",
+                P2P_Server_App_Context.ConnectionHandle);
+    APP_DBG_MSG(" \n\r");
 /* USER CODE END PEER_CONN_HANDLE_EVT */
-      break;
+    break;
 
     case PEER_DISCON_HANDLE_EVT :
 /* USER CODE BEGIN PEER_DISCON_HANDLE_EVT */
-      /* Reset context and turn off LED/alarm on disconnect */
-      P2PS_APP_LED_BUTTON_context_Init();
+    APP_DBG_MSG("-- P2P APPLICATION SERVER : PEER DISCONNECTED\n");
+    APP_DBG_MSG(" \n\r");
+
+    P2P_Server_App_Context.ConnectionHandle = 0xFFFF;
+    /* Reset context and LED on disconnect */
+    P2PS_APP_LED_BUTTON_context_Init();
 /* USER CODE END PEER_DISCON_HANDLE_EVT */
-      break;
+    break;
 
     default:
 /* USER CODE BEGIN P2PS_APP_Notification_default */
@@ -245,26 +241,22 @@ void P2PS_APP_Init(void)
    * Initialize LedButton Service
    */
   P2P_Server_App_Context.Notification_Status = 0;
+  P2P_Server_App_Context.ConnectionHandle    = 0xFFFF;
   P2PS_APP_LED_BUTTON_context_Init();
 /* USER CODE END P2PS_APP_Init */
   return;
 }
 
 /* USER CODE BEGIN FD */
+
+/**
+  * @brief Initialize LED/button context.
+  */
 void P2PS_APP_LED_BUTTON_context_Init(void)
 {
-  /* Turn LED off and reset alarm/clock state */
+  /* Turn LED off */
   BSP_LED_Off(LED_BLUE);
   APP_DBG_MSG("LED BLUE OFF\n");
-
-  g_CurrentTime.hours   = 0;
-  g_CurrentTime.minutes = 0;
-  g_CurrentTime.seconds = 0;
-  g_AlarmTime.hours     = 0;
-  g_AlarmTime.minutes   = 0;
-  g_AlarmTime.seconds   = 0;
-  g_AlarmEnabled        = 0;
-  g_AlarmActive         = 0;
 
 #if(P2P_SERVER1 != 0)
   P2P_Server_App_Context.LedControl.Device_Led_Selection      = 0x01; /* Device1 */
@@ -304,6 +296,9 @@ void P2PS_APP_LED_BUTTON_context_Init(void)
 #endif
 }
 
+/**
+  * @brief  Button SW1 action – sends notification to client.
+  */
 void P2PS_APP_SW1_Button_Action(void)
 {
   UTIL_SEQ_SetTask( 1<<CFG_TASK_SW1_BUTTON_PUSHED_ID, CFG_SCH_PRIO_0);
@@ -311,14 +306,58 @@ void P2PS_APP_SW1_Button_Action(void)
 }
 
 /**
-  * @brief  1 Hz clock tick.
-  *         Call this from a hardware timer interrupt or an RTOS periodic task.
+  * @brief  Publish current time to client via notify characteristic.
+  *         Payload format: [ hour24, minute, second ]
+  *         (Currently not used by main.c but left for future use.)
   */
-void P2PS_APP_Clock_1Hz_Tick(void)
+void P2PS_APP_PublishTime(uint8_t hour24, uint8_t minute, uint8_t second)
 {
-  Clock_Increment_OneSecond();
-  Alarm_CheckAndTrigger();
+  uint8_t payload[3];
+
+  payload[0] = hour24;
+  payload[1] = minute;
+  payload[2] = second;
+
+  if (P2P_Server_App_Context.Notification_Status)
+  {
+    APP_DBG_MSG("-- P2P APPLICATION SERVER : PUBLISH TIME %02d:%02d:%02d\n",
+                (int)hour24, (int)minute, (int)second);
+    P2PS_STM_App_Update_Char(P2P_NOTIFY_CHAR_UUID, payload);
+  }
 }
+
+/**
+  * @brief  Publish INA219 sensor data to client via notify characteristic.
+  *
+  *         Payload format (8 bytes, little-endian int16_t):
+  *           [ mv1_L, mv1_H, ma1_L, ma1_H, mv2_L, mv2_H, ma2_L, ma2_H ]
+  *
+  *         mv = millivolts, ma = milliamps
+  */
+/* USER CODE BEGIN FD_LOCAL_FUNCTIONS */
+void P2PS_APP_PublishSensors(int16_t mv1, int16_t ma1,
+                             int16_t mv2, int16_t ma2)
+{
+  if (P2P_Server_App_Context.Notification_Status)
+  {
+    /* 4 x int16_t = 8 bytes payload */
+    int16_t payload[4];
+    payload[0] = mv1;
+    payload[1] = ma1;
+    payload[2] = mv2;
+    payload[3] = ma2;
+
+    P2PS_STM_App_Update_Char(P2P_NOTIFY_CHAR_UUID, (uint8_t *)payload);
+  }
+  else
+  {
+    APP_DBG_MSG("-- P2P APP : sensors NOT sent, notifications disabled\n");
+  }
+}
+
+
+
+
 /* USER CODE END FD */
 
 /*************************************************************
@@ -327,7 +366,15 @@ void P2PS_APP_Clock_1Hz_Tick(void)
  *
  *************************************************************/
 /* USER CODE BEGIN FD_LOCAL_FUNCTIONS*/
-void P2PS_Send_Notification(void)
+
+/**
+  * @brief  Send button-press notification to client.
+  *
+  * Note: this still uses the same notify characteristic. If you never
+  *       trigger SW1, you’ll only ever see the sensor payloads (8 bytes)
+  *       on the client side.
+  */
+static void P2PS_Send_Notification(void)
 {
   if(P2P_Server_App_Context.ButtonControl.ButtonStatus == 0x00)
   {
@@ -353,68 +400,4 @@ void P2PS_Send_Notification(void)
   return;
 }
 
-/**
-  * @brief  Increment internal clock by one second.
-  */
-static void Clock_Increment_OneSecond(void)
-{
-  g_CurrentTime.seconds++;
-  if (g_CurrentTime.seconds >= 60)
-  {
-    g_CurrentTime.seconds = 0;
-    g_CurrentTime.minutes++;
-    if (g_CurrentTime.minutes >= 60)
-    {
-      g_CurrentTime.minutes = 0;
-      g_CurrentTime.hours++;
-      if (g_CurrentTime.hours >= 24)
-      {
-        g_CurrentTime.hours = 0;
-      }
-    }
-  }
-}
-
-/**
-  * @brief  Check if alarm should trigger and control LED.
-  *
-  * Right now:
-  *   - When alarm is armed, BLUE LED is ON (steady).
-  *   - When alarm time is reached, g_AlarmActive is set to 1 and LED stays ON.
-  * Later you can:
-  *   - Add buzzer GPIO toggling here
-  *   - Implement blinking using another timer
-  */
-static void Alarm_CheckAndTrigger(void)
-{
-  if (g_AlarmEnabled)
-  {
-    /* Ensure LED is ON when armed (and stays on while ringing) */
-    BSP_LED_On(LED_BLUE);
-
-    if (!g_AlarmActive &&
-        (g_CurrentTime.hours   == g_AlarmTime.hours) &&
-        (g_CurrentTime.minutes == g_AlarmTime.minutes) &&
-        (g_CurrentTime.seconds == g_AlarmTime.seconds))
-    {
-      g_AlarmActive = 1;
-
-      APP_DBG_MSG("-- P2P APPLICATION SERVER : ALARM TRIGGERED at %02d:%02d:%02d\n",
-                  (int)g_CurrentTime.hours,
-                  (int)g_CurrentTime.minutes,
-                  (int)g_CurrentTime.seconds);
-      APP_DBG_MSG(" \n\r");
-
-      /* TODO: drive buzzer GPIO or signal an RTOS task here */
-      /* Example:
-       * HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_SET);
-       */
-    }
-  }
-  else
-  {
-    /* Alarm not armed – LED off unless you want a different behavior */
-    BSP_LED_Off(LED_BLUE);
-  }
-}
 /* USER CODE END FD_LOCAL_FUNCTIONS*/

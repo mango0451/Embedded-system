@@ -1,5 +1,5 @@
 Application/User/Core/main.o: \
- C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Projects/P-NUCLEO-WB55.Nucleo/Applications/BLE/BLE_p2pServer/Core/Src/main.c \
+ C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Projects/P-NUCLEO-WB55.Nucleo/Applications/BLE/BLE_p2pServer/Core/Src/main.c \
  ../../Core/Inc/main.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h \
  ../../Core/Inc/stm32wbxx_hal_conf.h \
@@ -24,6 +24,8 @@ Application/User/Core/main.o: \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h \
@@ -58,7 +60,8 @@ Application/User/Core/main.o: \
  ../../../../../../../Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo_errno.h \
  ../../Core/Inc/stm32wbxx_nucleo_conf.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h \
- ../../Core/Inc/app_entry.h ../../Core/Inc/app_common.h
+ ../../Core/Inc/app_entry.h ../../Core/Inc/app_common.h \
+ ../../STM32_WPAN/App/p2p_server_app.h
 ../../Core/Inc/main.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h:
 ../../Core/Inc/stm32wbxx_hal_conf.h:
@@ -83,6 +86,8 @@ Application/User/Core/main.o: \
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h:
@@ -120,3 +125,4 @@ Application/User/Core/main.o: \
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h:
 ../../Core/Inc/app_entry.h:
 ../../Core/Inc/app_common.h:
+../../STM32_WPAN/App/p2p_server_app.h:

@@ -69,8 +69,8 @@ all: main-build
 main-build: BLE_p2pServer.elf secondary-outputs
 
 # Tool invocations
-BLE_p2pServer.elf BLE_p2pServer.map: $(OBJS) $(USER_OBJS) C:\Users\rhettdavis\Desktop\STM32Cube_FW_WB_V1.24.0\Projects\P-NUCLEO-WB55.Nucleo\Applications\BLE\BLE_p2pServer\STM32CubeIDE\STM32WB55RGVX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "BLE_p2pServer.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\rhettdavis\Desktop\STM32Cube_FW_WB_V1.24.0\Projects\P-NUCLEO-WB55.Nucleo\Applications\BLE\BLE_p2pServer\STM32CubeIDE\STM32WB55RGVX_FLASH.ld" --specs=nosys.specs -Wl,-Map="BLE_p2pServer.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
+BLE_p2pServer.elf BLE_p2pServer.map: $(OBJS) $(USER_OBJS) C:\Users\rhettdavis\STM32Cube\Repository\STM32Cube_FW_WB_V1.22.1\Projects\P-NUCLEO-WB55.Nucleo\Applications\BLE\BLE_p2pServer\STM32CubeIDE\STM32WB55RGVX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "BLE_p2pServer.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\rhettdavis\STM32Cube\Repository\STM32Cube_FW_WB_V1.22.1\Projects\P-NUCLEO-WB55.Nucleo\Applications\BLE\BLE_p2pServer\STM32CubeIDE\STM32WB55RGVX_FLASH.ld" --specs=nosys.specs -Wl,-Map="BLE_p2pServer.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

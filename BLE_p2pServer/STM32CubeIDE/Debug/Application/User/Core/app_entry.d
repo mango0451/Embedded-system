@@ -1,5 +1,5 @@
 Application/User/Core/app_entry.o: \
- C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Projects/P-NUCLEO-WB55.Nucleo/Applications/BLE/BLE_p2pServer/Core/Src/app_entry.c \
+ C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Projects/P-NUCLEO-WB55.Nucleo/Applications/BLE/BLE_p2pServer/Core/Src/app_entry.c \
  ../../Core/Inc/app_common.h ../../Core/Inc/app_conf.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread/hw.h \
  ../../Core/Inc/hw_conf.h ../../Core/Inc/hw_if.h \
@@ -26,6 +26,8 @@ Application/User/Core/app_entry.o: \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h \
@@ -71,18 +73,17 @@ Application/User/Core/app_entry.o: \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_std.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_defs.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_vs_codes.h \
- ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_gen_aci.h \
+ ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_gap_aci.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_types.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/template/ble_const.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_std.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_defs.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/template/osal.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/template/compiler.h \
- ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_gap_aci.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_gatt_aci.h \
- ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_l2cap_aci.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_hal_aci.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_hci_le.h \
+ ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_l2cap_aci.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_events.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_legacy.h \
@@ -148,6 +149,8 @@ Application/User/Core/app_entry.o: \
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h:
@@ -196,18 +199,17 @@ Application/User/Core/app_entry.o: \
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_std.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_defs.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_vs_codes.h:
-../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_gen_aci.h:
+../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_gap_aci.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_types.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/template/ble_const.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_std.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_defs.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/template/osal.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/template/compiler.h:
-../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_gap_aci.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_gatt_aci.h:
-../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_l2cap_aci.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_hal_aci.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_hci_le.h:
+../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_l2cap_aci.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/auto/ble_events.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_legacy.h:
