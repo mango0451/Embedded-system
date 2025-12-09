@@ -2,27 +2,8 @@
 /**
   ******************************************************************************
   * @file    main.c
-  * @author  MCD Application Team / Rhett
-  * @brief   BLE application with BLE core + LCD time display + INA219
-  *
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2019-2021 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  @verbatim
-  ==============================================================================
-                    ##### IMPORTANT NOTE #####
-  ==============================================================================
-  This application requests having the stm32wb5x_BLE_Stack_fw.bin binary
-  flashed on the Wireless Coprocessor.
-  @endverbatim
+  * @author  Rhett
+  * @brief   BLE + LCD clock + INA219 monitor
   ******************************************************************************
   */
 /* USER CODE END Header */
@@ -32,9 +13,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
-#include "p2p_server_app.h"      // p2p calls Clock_SetTime / Clock_SetAlarm in this file
+#include "p2p_server_app.h"
 
-/* BLE helper to publish INA219 sensor data (implemented in p2p_server_app.c) */
 extern void P2PS_APP_PublishSensors(int16_t mv1, int16_t ma1,
                                     int16_t mv2, int16_t ma2);
 /* USER CODE END Includes */
@@ -51,14 +31,14 @@ typedef struct task
 
 enum TL_states { TL0, TL1, TL2 };
 enum UL_states { UL0, UL1 };
-enum SL_states { SL0 };         // sensor task state
+enum SL_states { SL0 };
 enum DA_states { DA0 };
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-// LCD pins
+/* LCD pins */
 #define LCD_RS_GPIO_PORT   GPIOA
 #define LCD_RS_PIN         GPIO_PIN_2
 
@@ -74,7 +54,7 @@ enum DA_states { DA0 };
 #define LCD_D7_GPIO_PORT   GPIOA
 #define LCD_D7_PIN         GPIO_PIN_4
 
-// INA219 addresses (shifted for HAL)
+/* INA219 addresses (shifted for HAL) */
 #define INA1_ADDR   (0x40 << 1)
 #define INA2_ADDR   (0x41 << 1)
 
@@ -108,30 +88,27 @@ RTC_HandleTypeDef hrtc;
 
 /* USER CODE BEGIN PV */
 
-// hi2c1 is used for INA219 access
-
-// simple scheduler
+/* simple task scheduler */
 const unsigned int  numTasks   = 4;
-const unsigned long basePeriod = 1;      // not actually used with HAL_GetTick
-const unsigned long TL_period  = 1000;   // 1s
-const unsigned long UL_period  = 1000;   // 1s
-const unsigned long SL_period  = 1000;   // 1s sensor update
-const unsigned long DA_period = 10;
-
+const unsigned long basePeriod = 1;
+const unsigned long TL_period  = 1000;
+const unsigned long UL_period  = 1000;
+const unsigned long SL_period  = 1000;
+const unsigned long DA_period  = 10;
 
 task tasks[4];
 
-/* Global clock (24-hour) that BLE will set via Clock_SetTime */
+/* software clock, updated once per second */
 volatile uint8_t  g_hours         = 0;
 volatile uint8_t  g_minutes       = 0;
 volatile uint8_t  g_seconds       = 0;
-volatile uint32_t g_bleWriteCount = 0;   // increments every time BLE sets time
+volatile uint32_t g_bleWriteCount = 0;
 
-/* Alarm (24-hour) controlled by BLE via Clock_SetAlarm */
+/* alarm time and state */
 volatile uint8_t  g_alarmHour     = 7;
 volatile uint8_t  g_alarmMinute   = 0;
-volatile uint8_t  g_alarmEnabled  = 0;   // 1 = armed
-volatile uint8_t  g_alarmLatched  = 0;   // 1 = already fired
+volatile uint8_t  g_alarmEnabled  = 0;
+volatile uint8_t  g_alarmLatched  = 0;
 
 /* USER CODE END PV */
 
@@ -148,7 +125,7 @@ static void MX_I2C3_Init(void);
 static void MX_RF_Init(void);
 /* USER CODE BEGIN PFP */
 
-/* LCD helpers */
+/* LCD */
 static void LCD_EnablePulse(void);
 static void LCD_Send4Bits(uint8_t data);
 static void LCD_Send(uint8_t value, uint8_t isData);
@@ -158,21 +135,21 @@ static void LCD_Init(void);
 static void LCD_SetCursor(uint8_t col, uint8_t row);
 static void LCD_Print(char *str);
 
-/* INA219 helpers */
+/* INA219 */
 static uint16_t INA219_ReadReg(uint16_t addr, uint8_t reg);
 static void     INA219_WriteReg(uint16_t addr, uint8_t reg, uint16_t val);
 static void     INA219_Init(void);
 static float    INA219_GetBusVoltage_V_Addr(uint16_t addr);
 static float    INA219_GetCurrent(uint16_t addr);
 
-/* Clock API: BLE calls these when it receives new time / alarm */
+/* time/alarm interface used by BLE */
 void Clock_SetTime(uint8_t hour24, uint8_t minute, uint8_t second);
 void Clock_SetAlarm(uint8_t hour24, uint8_t minute);
 
-/* task functions */
+/* tasks */
 int ThreeLED(int state);
 int UpdateLCD(int state);
-int UpdateSensors(int state);   // INA219 -> BLE
+int UpdateSensors(int state);
 int DisableAlarm(int state);
 
 /* USER CODE END PFP */
@@ -180,7 +157,6 @@ int DisableAlarm(int state);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-/*********** CLOCK API ***********/
 void Clock_SetTime(uint8_t hour24, uint8_t minute, uint8_t second)
 {
   if (hour24 >= 24)  hour24  = 0;
@@ -191,7 +167,7 @@ void Clock_SetTime(uint8_t hour24, uint8_t minute, uint8_t second)
   g_minutes = minute;
   g_seconds = second;
 
-  g_bleWriteCount++;    // count how many times BLE called us
+  g_bleWriteCount++;
 }
 
 void Clock_SetAlarm(uint8_t hour24, uint8_t minute)
@@ -204,10 +180,8 @@ void Clock_SetAlarm(uint8_t hour24, uint8_t minute)
   g_alarmEnabled = 1;
   g_alarmLatched = 0;
 
-  /* Start with LED low */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
 
-  /* DEBUG: blink PA6 three times whenever an alarm is programmed */
   for (int i = 0; i < 3; i++)
   {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET);
@@ -217,7 +191,8 @@ void Clock_SetAlarm(uint8_t hour24, uint8_t minute)
   }
 }
 
-/*********** LCD DRIVER ***********/
+/* LCD driver */
+
 static void LCD_EnablePulse(void)
 {
   HAL_GPIO_WritePin(LCD_E_GPIO_PORT, LCD_E_PIN, GPIO_PIN_SET);
@@ -297,7 +272,8 @@ static void LCD_Print(char *str)
   }
 }
 
-/*********** INA219 ***********/
+/* INA219 */
+
 static uint16_t INA219_ReadReg(uint16_t addr, uint8_t reg)
 {
   uint8_t buf[2];
@@ -337,7 +313,8 @@ static float INA219_GetCurrent(uint16_t addr)
   return raw * 0.1f;
 }
 
-/*********** TASKS ***********/
+/* tasks */
+
 int ThreeLED(int state)
 {
   switch (state)
@@ -376,7 +353,6 @@ int UpdateLCD(int state)
   {
     case UL0:
     {
-      /* Local 1 Hz software clock tick */
       g_seconds++;
       if (g_seconds >= 60)
       {
@@ -389,21 +365,18 @@ int UpdateLCD(int state)
         g_hours = (g_hours + 1) % 24;
       }
 
-      /* Alarm check */
       if (g_alarmEnabled && !g_alarmLatched &&
           g_hours == g_alarmHour &&
           g_minutes == g_alarmMinute)
       {
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET);  // alarm LED ON
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET);
         g_alarmLatched = 1;
       }
 
-      /* Snapshot for display */
       uint8_t  h24 = g_hours;
       uint8_t  m   = g_minutes;
       uint32_t cnt = g_bleWriteCount;
 
-      /* Convert to 12-hour + AM/PM */
       uint8_t h12;
       const char *ampm;
 
@@ -431,9 +404,7 @@ int UpdateLCD(int state)
       char line1[17];
       char line2[17];
 
-      /* Top line: BLE write count (debug) */
       snprintf(line1, sizeof(line1), "BLE:%2lu        ", (unsigned long)cnt);
-      /* Second line: time */
       snprintf(line2, sizeof(line2), "%2u:%02u %s     ", h12, m, ampm);
 
       LCD_SetCursor(0, 0);
@@ -451,27 +422,22 @@ int UpdateLCD(int state)
   return state;
 }
 
-/* INA219 periodic read + BLE publish */
-/* INA219 periodic read + BLE publish */
 int UpdateSensors(int state)
 {
   switch (state)
   {
     case SL0:
     {
-      /* Visual proof the sensor task is running at 1 Hz */
       HAL_GPIO_TogglePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin);
 
-      /* Read real INA219 values */
-      float v1_V   = INA219_GetBusVoltage_V_Addr(INA1_ADDR);  // volts
-      float i1_mA  = INA219_GetCurrent(INA1_ADDR);            // milliamps
+      float v1_V   = INA219_GetBusVoltage_V_Addr(INA1_ADDR);
+      float i1_mA  = INA219_GetCurrent(INA1_ADDR);
 
-      float v2_V   = INA219_GetBusVoltage_V_Addr(INA2_ADDR);  // volts
-      float i2_mA  = INA219_GetCurrent(INA2_ADDR);            // milliamps
+      float v2_V   = INA219_GetBusVoltage_V_Addr(INA2_ADDR);
+      float i2_mA  = INA219_GetCurrent(INA2_ADDR);
 
-      /* Convert to mV / mA for BLE payload */
-      int16_t mv1 = (int16_t)(v1_V * 1000.0f);  // volts -> mV
-      int16_t ma1 = (int16_t)(i1_mA);           // already mA
+      int16_t mv1 = (int16_t)(v1_V * 1000.0f);
+      int16_t ma1 = (int16_t)(i1_mA);
 
       int16_t mv2 = (int16_t)(v2_V * 1000.0f);
       int16_t ma2 = (int16_t)(i2_mA);
@@ -489,16 +455,19 @@ int UpdateSensors(int state)
 
 int DisableAlarm(int state)
 {
-	switch (state)
-	{
-		case DA0:
-		{
-			GPIO_PinState s = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_7);
-			if(s == GPIO_PIN_SET) HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
-			break;
-		}
-	}
-	return state;
+  switch (state)
+  {
+    case DA0:
+    {
+      GPIO_PinState s = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_7);
+      if (s == GPIO_PIN_SET)
+      {
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
+      }
+      break;
+    }
+  }
+  return state;
 }
 /* USER CODE END 0 */
 
@@ -509,7 +478,6 @@ int DisableAlarm(int state)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  // init tasks
   tasks[0].state       = TL0;
   tasks[0].period      = TL_period;
   tasks[0].elapsedTime = 0;
@@ -520,7 +488,6 @@ int main(void)
   tasks[1].elapsedTime = 0;
   tasks[1].Function    = &UpdateLCD;
 
-  /* sensor task */
   tasks[2].state       = SL0;
   tasks[2].period      = SL_period;
   tasks[2].elapsedTime = 0;
@@ -534,13 +501,8 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-  /* Config code for STM32_WPAN (HSE Tuning must be done before system clock configuration) */
   MX_APPE_Config();
-
-  /* USER CODE BEGIN Init */
-  /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
@@ -550,9 +512,6 @@ int main(void)
 
   /* IPCC initialisation */
   MX_IPCC_Init();
-
-  /* USER CODE BEGIN SysInit */
-  /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
@@ -565,18 +524,14 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   LCD_Init();
-
-  /* INA219 for sensors */
   INA219_Init();
 
-  /* Alarm LED quick blink at startup */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
   HAL_Delay(200);
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET);
   HAL_Delay(200);
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
 
-  /* Initial LCD message */
   LCD_SetCursor(0, 0);
   LCD_Print("BLE: 0         ");
   LCD_SetCursor(0, 1);
@@ -584,14 +539,10 @@ int main(void)
 
   /* USER CODE END 2 */
 
-  /* Init code for STM32_WPAN */
   MX_APPE_Init();
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
     MX_APPE_Process();
 
     /* USER CODE BEGIN 3 */
@@ -604,8 +555,8 @@ int main(void)
         tasks[i].elapsedTime = now;
       }
     }
+    /* USER CODE END 3 */
   }
-  /* USER CODE END 3 */
 }
 
 /**
@@ -617,18 +568,11 @@ void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  /** Configure LSE Drive Capability
-  */
   HAL_PWR_EnableBkUpAccess();
   __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
 
-  /** Configure the main internal regulator output voltage
-  */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI
                               |RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
@@ -642,8 +586,6 @@ void SystemClock_Config(void)
     Error_Handler();
   }
 
-  /** Configure the SYSCLKSource, HCLK, PCLK1 and PCLK2 clocks dividers
-  */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK4|RCC_CLOCKTYPE_HCLK2
                               |RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -668,8 +610,6 @@ void PeriphCommonClock_Config(void)
 {
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
-  /** Initializes the peripherals clock
-  */
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SMPS|RCC_PERIPHCLK_RFWAKEUP;
   PeriphClkInitStruct.RFWakeUpClockSelection = RCC_RFWKPCLKSOURCE_LSE;
   PeriphClkInitStruct.SmpsClockSelection = RCC_SMPSCLKSOURCE_HSE;
@@ -679,8 +619,6 @@ void PeriphCommonClock_Config(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN Smps */
-  /* USER CODE END Smps */
 }
 
 /**
@@ -690,14 +628,6 @@ void PeriphCommonClock_Config(void)
   */
 static void MX_I2C1_Init(void)
 {
-
-  /* USER CODE BEGIN I2C1_Init 0 */
-
-  /* USER CODE END I2C1_Init 0 */
-
-  /* USER CODE BEGIN I2C1_Init 1 */
-
-  /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
   hi2c1.Init.Timing = 0x00B07CB4;
   hi2c1.Init.OwnAddress1 = 0;
@@ -712,23 +642,15 @@ static void MX_I2C1_Init(void)
     Error_Handler();
   }
 
-  /** Configure Analogue filter
-  */
   if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
   {
     Error_Handler();
   }
 
-  /** Configure Digital filter
-  */
   if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN I2C1_Init 2 */
-
-  /* USER CODE END I2C1_Init 2 */
-
 }
 
 /**
@@ -738,14 +660,6 @@ static void MX_I2C1_Init(void)
   */
 static void MX_I2C3_Init(void)
 {
-
-  /* USER CODE BEGIN I2C3_Init 0 */
-
-  /* USER CODE END I2C3_Init 0 */
-
-  /* USER CODE BEGIN I2C3_Init 1 */
-
-  /* USER CODE END I2C3_Init 1 */
   hi2c3.Instance = I2C3;
   hi2c3.Init.Timing = 0x00B07CB4;
   hi2c3.Init.OwnAddress1 = 0;
@@ -760,23 +674,15 @@ static void MX_I2C3_Init(void)
     Error_Handler();
   }
 
-  /** Configure Analogue filter
-  */
   if (HAL_I2CEx_ConfigAnalogFilter(&hi2c3, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
   {
     Error_Handler();
   }
 
-  /** Configure Digital filter
-  */
   if (HAL_I2CEx_ConfigDigitalFilter(&hi2c3, 0) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN I2C3_Init 2 */
-
-  /* USER CODE END I2C3_Init 2 */
-
 }
 
 /**
@@ -786,23 +692,11 @@ static void MX_I2C3_Init(void)
   */
 static void MX_IPCC_Init(void)
 {
-
-  /* USER CODE BEGIN IPCC_Init 0 */
-
-  /* USER CODE END IPCC_Init 0 */
-
-  /* USER CODE BEGIN IPCC_Init 1 */
-
-  /* USER CODE END IPCC_Init 1 */
   hipcc.Instance = IPCC;
   if (HAL_IPCC_Init(&hipcc) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN IPCC_Init 2 */
-
-  /* USER CODE END IPCC_Init 2 */
-
 }
 
 /**
@@ -812,14 +706,6 @@ static void MX_IPCC_Init(void)
   */
 void MX_LPUART1_UART_Init(void)
 {
-
-  /* USER CODE BEGIN LPUART1_Init 0 */
-
-  /* USER CODE END LPUART1_Init 0 */
-
-  /* USER CODE BEGIN LPUART1_Init 1 */
-
-  /* USER CODE END LPUART1_Init 1 */
   hlpuart1.Instance = LPUART1;
   hlpuart1.Init.BaudRate = 115200;
   hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
@@ -847,10 +733,6 @@ void MX_LPUART1_UART_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN LPUART1_Init 2 */
-
-  /* USER CODE END LPUART1_Init 2 */
-
 }
 
 /**
@@ -860,14 +742,6 @@ void MX_LPUART1_UART_Init(void)
   */
 void MX_USART1_UART_Init(void)
 {
-
-  /* USER CODE BEGIN USART1_Init 0 */
-
-  /* USER CODE END USART1_Init 0 */
-
-  /* USER CODE BEGIN USART1_Init 1 */
-
-  /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
   huart1.Init.BaudRate = 115200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
@@ -895,10 +769,6 @@ void MX_USART1_UART_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN USART1_Init 2 */
-
-  /* USER CODE END USART1_Init 2 */
-
 }
 
 /**
@@ -908,18 +778,6 @@ void MX_USART1_UART_Init(void)
   */
 static void MX_RF_Init(void)
 {
-
-  /* USER CODE BEGIN RF_Init 0 */
-
-  /* USER CODE END RF_Init 0 */
-
-  /* USER CODE BEGIN RF_Init 1 */
-
-  /* USER CODE END RF_Init 1 */
-  /* USER CODE BEGIN RF_Init 2 */
-
-  /* USER CODE END RF_Init 2 */
-
 }
 
 /**
@@ -929,24 +787,12 @@ static void MX_RF_Init(void)
   */
 static void MX_RNG_Init(void)
 {
-
-  /* USER CODE BEGIN RNG_Init 0 */
-
-  /* USER CODE END RNG_Init 0 */
-
-  /* USER CODE BEGIN RNG_Init 1 */
-
-  /* USER CODE END RNG_Init 1 */
   hrng.Instance = RNG;
   hrng.Init.ClockErrorDetection = RNG_CED_ENABLE;
   if (HAL_RNG_Init(&hrng) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN RNG_Init 2 */
-
-  /* USER CODE END RNG_Init 2 */
-
 }
 
 /**
@@ -956,17 +802,6 @@ static void MX_RNG_Init(void)
   */
 static void MX_RTC_Init(void)
 {
-
-  /* USER CODE BEGIN RTC_Init 0 */
-
-  /* USER CODE END RTC_Init 0 */
-
-  /* USER CODE BEGIN RTC_Init 1 */
-
-  /* USER CODE END RTC_Init 1 */
-
-  /** Initialize RTC Only
-  */
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = CFG_RTC_ASYNCH_PRESCALER;
@@ -980,16 +815,10 @@ static void MX_RTC_Init(void)
     Error_Handler();
   }
 
-  /** Enable the WakeUp
-  */
   if (HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 0, RTC_WAKEUPCLOCK_RTCCLK_DIV16) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN RTC_Init 2 */
-
-  /* USER CODE END RTC_Init 2 */
-
 }
 
 /**
@@ -997,20 +826,14 @@ static void MX_RTC_Init(void)
   */
 static void MX_DMA_Init(void)
 {
-
-  /* DMA controller clock enable */
   __HAL_RCC_DMAMUX1_CLK_ENABLE();
   __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_DMA2_CLK_ENABLE();
 
-  /* DMA interrupt init */
-  /* DMA1_Channel4_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 15, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
-  /* DMA2_Channel4_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Channel4_IRQn, 15, 0);
   HAL_NVIC_EnableIRQ(DMA2_Channel4_IRQn);
-
 }
 
 /**
@@ -1022,20 +845,18 @@ static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
-  /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
-  //Button
-
+  /* alarm cancel button (PA7) */
   GPIO_InitStruct.Pin = GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* --- PA6: alarm LED --- */
+  /* PA6: alarm output */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
 
   GPIO_InitStruct.Pin = GPIO_PIN_6;
@@ -1044,7 +865,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* --- On-board blue LED --- */
+  /* on-board blue LED */
   HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
 
   GPIO_InitStruct.Pin = LED_BLUE_Pin;
@@ -1053,7 +874,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_BLUE_GPIO_Port, &GPIO_InitStruct);
 
-  /* --- LCD pins (all on GPIOA) --- */
+  /* LCD pins */
   HAL_GPIO_WritePin(LCD_RS_GPIO_PORT, LCD_RS_PIN, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(LCD_E_GPIO_PORT,  LCD_E_PIN,  GPIO_PIN_RESET);
   HAL_GPIO_WritePin(LCD_D4_GPIO_PORT, LCD_D4_PIN, GPIO_PIN_RESET);
@@ -1075,7 +896,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-/* no extra MX_I2C1_Init here; we use the CubeMX one above */
 /* USER CODE END 4 */
 
 /**
@@ -1084,28 +904,14 @@ static void MX_GPIO_Init(void)
   */
 void Error_Handler(void)
 {
-  /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
   while (1)
   {
   }
-  /* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT
-/**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
 void assert_failed(uint8_t *file, uint32_t line)
 {
-  /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
