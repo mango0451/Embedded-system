@@ -1,6 +1,6 @@
 Middlewares/STM32_WPAN/otp.o: \
- C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Middlewares/ST/STM32_WPAN/utilities/otp.c \
- C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Middlewares/ST/STM32_WPAN/utilities/utilities_common.h \
+ C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Middlewares/ST/STM32_WPAN/utilities/otp.c \
+ C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Middlewares/ST/STM32_WPAN/utilities/utilities_common.h \
  ../../Core/Inc/app_conf.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread/hw.h \
  ../../Core/Inc/hw_conf.h ../../Core/Inc/hw_if.h \
@@ -27,6 +27,8 @@ Middlewares/STM32_WPAN/otp.o: \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h \
+ ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h \
  ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h \
@@ -58,8 +60,8 @@ Middlewares/STM32_WPAN/otp.o: \
  ../../../../../../../Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo_errno.h \
  ../../Core/Inc/stm32wbxx_nucleo_conf.h \
  ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h \
- C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Middlewares/ST/STM32_WPAN/utilities/otp.h
-C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Middlewares/ST/STM32_WPAN/utilities/utilities_common.h:
+ C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Middlewares/ST/STM32_WPAN/utilities/otp.h
+C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Middlewares/ST/STM32_WPAN/utilities/utilities_common.h:
 ../../Core/Inc/app_conf.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread/hw.h:
 ../../Core/Inc/hw_conf.h:
@@ -87,6 +89,8 @@ C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Middlewares/ST/STM32_WPAN/ut
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_hsem.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h:
+../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_ipcc.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pwr.h:
 ../../../../../../../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h:
@@ -118,4 +122,4 @@ C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Middlewares/ST/STM32_WPAN/ut
 ../../../../../../../Drivers/BSP/P-NUCLEO-WB55.Nucleo/stm32wbxx_nucleo_errno.h:
 ../../Core/Inc/stm32wbxx_nucleo_conf.h:
 ../../../../../../../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h:
-C:/Users/rhettdavis/Desktop/STM32Cube_FW_WB_V1.24.0/Middlewares/ST/STM32_WPAN/utilities/otp.h:
+C:/Users/rhettdavis/STM32Cube/Repository/STM32Cube_FW_WB_V1.22.1/Middlewares/ST/STM32_WPAN/utilities/otp.h:
